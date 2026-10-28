@@ -1,0 +1,44 @@
+name: Daily risk report
+
+on:
+  schedule:
+    - cron: "30 22 * * 1-5"     # 22:30 UTC, Monday to Friday: after the US close (21:00 UTC in winter, 20:00 in summer)
+  workflow_dispatch:             # a "Run workflow" button for manual runs
+
+permissions:
+  contents: write                # the robot may commit the new report
+
+concurrency:
+  group: daily-report            # never two runs at the same time
+  cancel-in-progress: false
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Get the code
+        uses: actions/checkout@v4
+
+      - name: Install Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"   # set to your version (printed by the command in 11.1)
+          cache: pip
+
+      - name: Install packages
+        run: pip install -r requirements.txt
+
+      - name: Run the report
+        env:
+          PYTHONPATH: src
+          MPLBACKEND: Agg
+        run: python -m riskreport.run
+
+      - name: Commit the new report
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs data/processed/oos_rolling.pkl data/processed/daily_history.csv
+          git diff --staged --quiet || git commit -m "Daily risk report $(date -u +%F)"
+          git push

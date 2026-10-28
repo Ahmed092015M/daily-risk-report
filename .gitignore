@@ -1,0 +1,7 @@
+# Python
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+
+# Raw downloads: refreshed at every run
+data/raw/
