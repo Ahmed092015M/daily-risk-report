@@ -42,5 +42,6 @@ jobs:
           git add docs data/processed/oos_rolling.pkl data/processed/daily_history.csv
           git diff --staged --quiet && exit 0          # nothing changed (e.g. a US holiday): stop here, run stays green
           git commit -m "Daily risk report $(date -u +%F)"
+          git reset --hard                             # drop the run's other changes (PNG copies of the charts); the commit is kept
           git pull --rebase -X theirs origin main      # catch up with commits pushed during the run; keep the robot's report
           git push
