@@ -18,12 +18,12 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Get the code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Install Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
-          python-version: "3.11"   # set to your version (printed by the command in 11.1)
+          python-version: "3.11"   # same version as the local conda environment "quant"
           cache: pip
 
       - name: Install packages
@@ -40,5 +40,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add docs data/processed/oos_rolling.pkl data/processed/daily_history.csv
-          git diff --staged --quiet || git commit -m "Daily risk report $(date -u +%F)"
+          git diff --staged --quiet && exit 0          # nothing changed (e.g. a US holiday): stop here, run stays green
+          git commit -m "Daily risk report $(date -u +%F)"
+          git pull --rebase -X theirs origin main      # catch up with commits pushed during the run; keep the robot's report
           git push
