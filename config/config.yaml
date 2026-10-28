@@ -1,0 +1,113 @@
+# ---------------------------------------------------------------------------
+# Daily risk report - fund configuration
+# Every number used by the report is set here, not in the code.
+# ---------------------------------------------------------------------------
+
+fund:
+  name: "Global Multi-Asset Fund (EUR)"
+  base_currency: EUR
+  nav: 100000000            # EUR 100m
+  rebalancing: monthly      # back to target weights on the first business day of each month
+  start: "2005-01-01"       # first date requested from the data sources (the common history is computed from the data)
+
+# Assets: ticker (Yahoo), currency, asset class, target weight, sensitivities for the stress tests.
+# The three European ETFs all trade on Xetra (same calendar and closing time).
+# duration / convexity / spread_duration: approximate values from the ETF factsheets (Step 7 only).
+assets:
+  euro_equity:   {ticker: EXW1.DE, name: "Euro area equities (EURO STOXX 50)", currency: EUR, asset_class: Equity,      weight: 0.150}
+  us_equity:     {ticker: SPY,     name: "US equities (S&P 500)",             currency: USD, asset_class: Equity,      weight: 0.200}
+  em_equity:     {ticker: EEM,     name: "Emerging-market equities",          currency: USD, asset_class: Equity,      weight: 0.100}
+  euro_govt:     {ticker: EUNH.DE, name: "Euro government bonds",             currency: EUR, asset_class: Rates,       weight: 0.250, duration: 7.3, convexity: 70}
+  euro_ig:       {ticker: EUN5.DE, name: "Euro investment-grade corporates",  currency: EUR, asset_class: Credit,      weight: 0.125, duration: 4.6, convexity: 30, spread_duration: 4.6}
+  us_hy:         {ticker: HYG,     name: "US high-yield corporates",          currency: USD, asset_class: Credit,      weight: 0.050, duration: 3.0, convexity: 15, spread_duration: 3.0}
+  gold:          {ticker: GLD,     name: "Gold",                              currency: USD, asset_class: Commodities, weight: 0.075}
+  commodities:   {ticker: DBC,     name: "Broad commodities",                 currency: USD, asset_class: Commodities, weight: 0.050}
+
+# Daily market data from Yahoo (available the same evening)
+market:
+  eurusd: "EURUSD=X"       # US dollars per euro
+  vix: "^VIX"              # implied volatility of the S&P 500 (for the put)
+  index: "^GSPC"           # S&P 500 index (the put's underlying)
+
+# FRED: the 3-month T-bill (slow-moving; forward-filled), and official series used as cross-checks
+fred:
+  rate_3m: DGS3MO          # 3-month T-bill (for the put)
+  eurusd_check: DEXUSEU    # US dollars per euro (noon New York), to check Yahoo's EURUSD=X
+  vix_check: VIXCLS        # official VIX close, to check Yahoo's ^VIX
+
+# Options overlay: protective put on the US equity sleeve
+overlay:
+  enabled: true
+  underlying: us_equity    # the sleeve it protects
+  index_ticker: "^GSPC"    # the option is on the S&P 500 index
+  moneyness: 0.90          # strike = 90% of spot
+  maturity_months: 3
+  roll: monthly            # new 3-month put each month
+  hedge_ratio: 1.0         # notional = 100% of the sleeve
+  dividend_yield: 0.015
+
+# Models
+models:
+  hs_window: 500           # days of history for historical simulation
+  fit_window: 1000         # days used to estimate GJR and DCC
+  refit: weekly            # re-estimate parameters every Friday; filter every day
+  fhs_scenarios: all       # every filtered day in the fit window is a scenario
+  evt_tail_share: 0.10     # GPD on the worst 10% of scenario losses
+  horizon_days: 20         # UCITS horizon
+  n_paths: 10000           # simulated 20-day paths
+  seed: 42
+
+# Risk measures reported
+measures:
+  var_levels: [0.975, 0.99, 0.999]
+  es_levels:  [0.975, 0.99, 0.999]
+  main_var: 0.99
+  main_es: 0.975
+
+# Limits (fraction of NAV unless stated); status amber from warning_level x limit
+limits:
+  warning_level: 0.80
+  var_99_1d: 0.020
+  es_975_1d: 0.025
+  ucits_var_99_20d: 0.200  # regulatory (UCITS absolute VaR)
+  volatility_annual: 0.12
+  max_risk_contribution: 0.40   # share of total VaR from any single asset
+  worst_stress_loss: 0.20
+
+# Stress scenarios
+stress:
+  historical:
+    lehman_2008: {start: "2008-09-12", end: "2008-10-10", label: "Lehman collapse (Sep-Oct 2008)"}
+    euro_crisis_2011: {start: "2011-07-29", end: "2011-08-19", label: "Euro crisis and US downgrade (Aug 2011)"}
+    covid_2020: {start: "2020-02-19", end: "2020-03-23", label: "Covid crash (Feb-Mar 2020)"}
+    rates_2022: {start: "2022-01-03", end: "2022-10-12", label: "Inflation and rates shock (2022)"}
+  hypothetical:
+    equity_minus_20: {equity: -0.20, vix_level: 0.45, label: "Equities -20%, VIX 45"}
+    rates_plus_100bp: {rates_bp: 100, label: "Rates +100 bp"}
+    spreads_plus_150bp: {spreads_bp: 150, label: "Credit spreads +150 bp"}
+    eur_up_10: {eurusd: 0.10, label: "EUR/USD +10% (USD assets lose in EUR)"}
+    eur_down_10: {eurusd: -0.10, label: "EUR/USD -10%"}
+    stagflation: {equity: -0.15, rates_bp: 100, spreads_bp: 100, commodities: 0.15, vix_level: 0.35, label: "Combined: equities -15%, rates +100 bp, spreads +100 bp, commodities +15%"}
+  
+  # Proxies for assets without data in a scenario window: local return of the proxy x scale
+  # (scale = duration of the asset / duration of the proxy)
+  proxies:
+    euro_govt: {ticker: IEF, scale: 0.97, note: "US Treasuries 7-10y (duration ~7.5) for euro govt (7.3)"}
+    euro_ig:   {ticker: LQD, scale: 0.55, note: "US IG corporates (duration ~8.4) for euro IG (4.6)"}
+  convention: instantaneous    # the window's cumulative move applied to tonight's positions at once
+
+
+
+# Data quality: suspect days that were reviewed and confirmed as real market moves (kept in the data)
+data_quality:
+  reviewed:
+    - {asset: euro_ig, date: "2026-03-03", note: "Real: broad European risk-off day (euro govt -0.61%, euro equities -3.4%); both bond ETFs rebounded the next day"}
+
+
+# Report
+report:
+  repo_url: "https://github.com/Ahmed092015M/daily-risk-report"
+
+
+
+
